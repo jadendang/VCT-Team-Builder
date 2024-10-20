@@ -41,25 +41,6 @@ llm = Bedrock(
 
 #     return response
 
-# def vct_chatbot(language, freeform_text, linked_data):
-#     base_prompt = "You are a chatbot that helps build teams for VCT based on game data. You are in {language}.\n\n{freeform_text}"
-
-#     linked_data_info = "Here is the tournament information: \n\n"
-#     for entry in linked_data:
-#         linked_data_info += f"- Platform Game ID: {entry['platformGameId']}, Teams: {entry['teams']}, Participants: {entry['participants']}, Tournament: {entry['tournament_info'].get('name', 'N/A')}\n"
-
-#     promp_text = base_prompt + linked_data_info
-
-#     prompt = PromptTemplate(
-#         input_variables=["prompt_text"],
-#         template="{prompt_text}"
-#     )
-
-#     bedrock_chain = LLMChain(llm=llm, prompt=prompt)
-#     response = bedrock_chain({"prompt_text": promp_text})
-
-    # return response
-
 region = "na"
 timespan = "60"
 scrape_data = fetch_stats(region, timespan)
@@ -74,7 +55,7 @@ def vct_chatbot(freeform_text, scraped_data):
 
     scraped_data_info = "Here are the player statistics: \n\n"
     for entry in scraped_data['data']['segments']:
-        scraped_data_info += f"- Player: {entry['player']}, Org: {entry['org']}, Agents: {entry['agents']}, Rounds Played: {entry['rounds_played']}, Rating: {entry['rating']}, ACS: {entry['average_combat_score']}, Avg Dmg per round: {entry['average_damage_per_round']}, Headshot %: {entry['headshot_percentage']}, Clutch %: {entry['clutch_success_percentage']}\n"
+        scraped_data_info += f"- Player: {entry['player']}, Org: {entry['org']}, Agents: {entry['agents']}, Roles: {entry['roles']}, Rounds Played: {entry['rounds_played']}, Rating: {entry['rating']}, ACS: {entry['average_combat_score']}, Avg Dmg per round: {entry['average_damage_per_round']}, Headshot %: {entry['headshot_percentage']}, Clutch %: {entry['clutch_success_percentage']}\n"
 
     promp_text = base_prompt.format(freeform_text=freeform_text) + scraped_data_info
 

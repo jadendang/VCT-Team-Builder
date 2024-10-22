@@ -1,4 +1,5 @@
 import requests
+import difflib
 from selectolax.parser import HTMLParser
 
 from utils.utils import headers, agent_roles
@@ -60,3 +61,34 @@ def fetch_stats(region: str, timespan: str):
     if status != 200:
         raise Exception("API response: {}".format(status))
     return data
+
+
+def get_similarity(name1, name2):
+    return difflib.SequenceMatcher(None, name1, name2).ratio()
+
+def find_player_stats(player_name, data):
+    player_name = player_name.strip().lower()
+    print(f"[DEBUG] Searching for {player_name}")
+
+    for player in data['data']['segments']:
+        db_player_name = player['player'].strip().lower()
+        if db_player_name == player_name:
+            print(f"[DEBUG] Found {db_player_name}")
+            return player, "exact"
+        
+    closest_match = None
+    highest_similarity = 0
+    for player in data['data']['segments']:
+        db_player_name = player['player'].strip().lower()
+        similarity = get_similarity(player_name, db_player_name)
+        print(f"[DEBUG] Comparing {db_player_name} with {player_name}, similarity: {similarity}")
+        if similarity > highest_similarity:
+            highest_similarity = similarity
+            closest_match = player
+
+    if closest_match and highest_similarity > 0.8:
+        print(f"[DEBUG] Fuzzy match found {closest_match['player']} with similarity {highest_similarity}")
+        return closest_match, "fuzzy"
+    
+    print(f"[DEBUG] No match found")
+    return None, None

@@ -1,6 +1,5 @@
 from langchain.chains import LLMChain
 from langchain_community.llms import Bedrock
-from langchain.memory import ConversationBufferMemory
 from langchain.prompts import PromptTemplate
 import boto3
 import os
@@ -11,11 +10,9 @@ import sys
 sys.path.append(os.path.abspath('/Users/jadendang/Documents/GitHub/VCT-Team-Builder/project'))
 from vlrdata.vlr_fetch import fetch_stats
 
-
 os.environ["AWS_PROFILE"] = "vscode"
 
-#Bedrock Client
-
+# Bedrock Client
 bedrock_client = boto3.client(
     service_name="bedrock-runtime",
     region_name="us-east-1"
@@ -26,20 +23,8 @@ modelID = "anthropic.claude-v2:1"
 llm = Bedrock(
     model_id=modelID,
     client=bedrock_client,
-    model_kwargs={"max_tokens_to_sample": 2000,"temperature": 0.9}
+    model_kwargs={"max_tokens_to_sample": 2000, "temperature": 0.9}
 )
-
-# def chatbot(language, freeform_text):
-#     prompt = PromptTemplate(
-#         input_variables=["language", "freeform_text"],
-#         template="You are a chatbot. You are in {language}.\n\n{freeform_text}"
-#     )
-
-#     bedrock_chain = LLMChain(llm=llm, prompt=prompt)
-
-#     response=bedrock_chain({"language": language, "freeform_text": freeform_text})
-
-#     return response
 
 region = "na"
 timespan = "60"
@@ -47,25 +32,29 @@ scrape_data = fetch_stats(region, timespan)
 print(scrape_data)
 
 def vct_chatbot(freeform_text, scraped_data):
-    base_prompt = """
-    You are a chatbot that helps analyze player stats and build teams for VCT based on that data. The language is English
-
-    {freeform_text}
-    """
-
+    if not scraped_data or 'data' not in scraped_data or 'segments' not in scraped_data['data']:
+        return "Sorry, I couldn't retrieve any player statistics. Please try again later."
+    
+    base_prompt = "You are a chatbot that helps analyze player stats and build teams for VCT based on that data. The language is English.\n\n"
+    prompt_text = base_prompt + freeform_text
+   
     scraped_data_info = "Here are the player statistics: \n\n"
+    player_count = 0
     for entry in scraped_data['data']['segments']:
-        scraped_data_info += f"- Player: {entry['player']}, Org: {entry['org']}, Agents: {entry['agents']}, Roles: {entry['roles']}, Rounds Played: {entry['rounds_played']}, Rating: {entry['rating']}, ACS: {entry['average_combat_score']}, Avg Dmg per round: {entry['average_damage_per_round']}, Headshot %: {entry['headshot_percentage']}, Clutch %: {entry['clutch_success_percentage']}\n"
+        if player_count < 3:  # Limit to 3 players for concise output
+            scraped_data_info += f"- Player: {entry['player']}, Org: {entry['org']}, Agents: {entry['agents']}, Roles: {entry['roles']}, Rounds Played: {entry['rounds_played']}, Rating: {entry['rating']}, ACS: {entry['average_combat_score']}, Avg Dmg per round: {entry['average_damage_per_round']}, Headshot %: {entry['headshot_percentage']}, Clutch %: {entry['clutch_success_percentage']}\n"
+            player_count += 1
+        else:
+            break
 
-    promp_text = base_prompt.format(freeform_text=freeform_text) + scraped_data_info
-
-    prompt = PromptTemplate(
-        input_variables=["prompt_text"],
-        template="{prompt_text}"
-    )
-
+    prompt_text += scraped_data_info
+    prompt = PromptTemplate(input_variables=["prompt_text"], template="{prompt_text}")
     bedrock_chain = LLMChain(llm=llm, prompt=prompt)
-    response = bedrock_chain({"prompt_text": promp_text})
+
+    try:
+        response = bedrock_chain({"prompt_text": prompt_text})
+    except Exception as e:
+        return f"Sorry, there was an issue generating a response: {str(e)}"
 
     return response
 
@@ -122,13 +111,8 @@ folder_path = '../data'
 data = load_json(folder_path)
 linked_data = link_data(data)
 
-# print(chatbot("English", "What is the capital of Canada?"))
-
 # Streamlit UI
-
 st.title("VCT Team Builder")
-
-# language = st.selectbox("Select Language", ("English"))
 
 freeform_text = st.sidebar.text_area(label="What is your question", max_chars=100)
 

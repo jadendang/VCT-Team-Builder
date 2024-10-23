@@ -1,79 +1,56 @@
 from langchain.chains import LLMChain
-from langchain_community.llms import Bedrock
+from langchain_aws import BedrockLLM  # Updated import
 from langchain.prompts import PromptTemplate
 import boto3
 import os
 import streamlit as st
 import json
 import sys
+import logging  # Added logging import
 
 sys.path.append(os.path.abspath('/Users/jadendang/Documents/GitHub/VCT-Team-Builder/project'))
 from vlrdata.vlr_fetch import fetch_stats
 
-os.environ["AWS_PROFILE"] = "vscode"
+# Set up AWS profile
+os.environ["AWS_PROFILE"] = "Hackthon"
 
 # Bedrock Client
 bedrock_client = boto3.client(
     service_name="bedrock-runtime",
-    region_name="us-east-1"
+    region_name="ap-northeast-1"  # Tokyo region
 )
 
-modelID = "anthropic.claude-v2:1"
-
-llm = Bedrock(
+modelID = "amazon.titan-text-express-v1"
+llm = BedrockLLM(
     model_id=modelID,
     client=bedrock_client,
-    model_kwargs={"max_tokens_to_sample": 2000, "temperature": 0.9}
+    model_kwargs={"maxTokenCount": 300, "temperature": 0.7}  # Reduce token limit for testing
 )
 
 region = "na"
 timespan = "60"
 scrape_data = fetch_stats(region, timespan)
-print(scrape_data)
+logging.basicConfig(level=logging.INFO)
+logging.info(f"Scraped Data: {scrape_data}")  # Added logging to check scraped data
 
+# Chatbot function
 def vct_chatbot(freeform_text, scraped_data):
-<<<<<<< HEAD
     if not scraped_data or 'data' not in scraped_data or 'segments' not in scraped_data['data']:
         return "Sorry, I couldn't retrieve any player statistics. Please try again later."
-    
-    base_prompt = "You are a chatbot that helps analyze player stats and build teams for VCT based on that data. The language is English.\n\n"
+
+    base_prompt = "You are a chatbot that helps analyze player stats and build teams for VCT based on that data. Answer the following:\n\n"
     prompt_text = base_prompt + freeform_text
-   
-=======
-    base_prompt = """
-    You are an assistant that specializes in analyzing player stats and build teams for VCT based on that data. When asked about a player, respond in a conversational tone. Explain stats in a way that is easy to understand. If the user wants to build a team, consider the roles, the players' versitility, and how well each player fits the team.
-
-    Example for Player Query:
-    User: "Who is Reduxx?"
-    Assistant: "Reduxx is a player from team SEN. He is particularly for his duelist role. Let's break down his stats in a fun way:
-
-    Agents: He loves picking duelist agents like Jett and Raze. But he can also flex pick, like playing Omen—so he's pretty versatile!
-    Rating: His overall rating is 1.16, which is pretty good.
-    ACS (Average Combat Score): He's clocking in at 238.2, meaning he's bringing a lot of firepower to his team.
-    Avg. Dmg per round: He's averaging 156.6 damage per round, which is pretty good.
-    Headshot %: Reduxx has a 30% headshot accuracy—he's clearly got some sharp aim.
-    Rounds Played: He's played 204 rounds, so he's definitely getting some solid experience in.
-
-    Example for Team Building:
-    User: "Build me a VCT team"
-    Assistant: "Here is a well-balance Valorant team I can suggest:
-    - Duelist: Reduxx from SEN, known for his duelist role. He likes to play Jett and Raze with a high ACS of 238.2.
-    - Duelist: PlayerE, a Raze main, who brings explosive entry potential.
-    - Initiator: PlayerB from Team XYZ, who excels at using Skye with consistent assist rates, helping the team get valuable information.
-    - Sentinel: PlayerC from Team ABC, who plays Sage effectively, maintaining a solid defense and clutching key rounds.
-    - Controller: PlayerD, who plays Omen, providing great smoke coverage for the team."
-
-    Now answer the user's query using the given information in the same conversational style:
+    scraped_data_info = "Here are the player statistics:\n\n"
     
-    {freeform_text}
-    """
-
->>>>>>> db795ea8d126836419d2a39a3f30e13dfc8cc97c
-    scraped_data_info = "Here are the player statistics: \n\n"
     player_count = 0
     for entry in scraped_data['data']['segments']:
         if player_count < 3:  # Limit to 3 players for concise output
-            scraped_data_info += f"- Player: {entry['player']}, Org: {entry['org']}, Agents: {entry['agents']}, Roles: {entry['roles']}, Rounds Played: {entry['rounds_played']}, Rating: {entry['rating']}, ACS: {entry['average_combat_score']}, Avg Dmg per round: {entry['average_damage_per_round']}, Headshot %: {entry['headshot_percentage']}, Clutch %: {entry['clutch_success_percentage']}\n"
+            scraped_data_info += (
+                f"- Player: {entry['player']}, Org: {entry['org']}, Agents: {entry['agents']}, "
+                f"Roles: {entry['roles']}, Rounds Played: {entry['rounds_played']}, Rating: {entry['rating']}, "
+                f"ACS: {entry['average_combat_score']}, Avg Dmg per round: {entry['average_damage_per_round']}, "
+                f"Headshot %: {entry['headshot_percentage']}, Clutch %: {entry['clutch_success_percentage']}\n"
+            )
             player_count += 1
         else:
             break
@@ -85,62 +62,10 @@ def vct_chatbot(freeform_text, scraped_data):
     try:
         response = bedrock_chain({"prompt_text": prompt_text})
     except Exception as e:
+        logging.error(f"Error generating response: {str(e)}")  # Added error logging
         return f"Sorry, there was an issue generating a response: {str(e)}"
 
-    return response
-
-def load_json(folder_path):
-    data = {
-        "mapping_data": [],
-        "players": [],
-        "teams": [],
-        "tournaments": [],
-        "leagues": []
-    }
-
-    for file_name in os.listdir(folder_path):
-        if file_name == "mapping_data.json":
-            with open(os.path.join(folder_path, file_name), "r") as f:
-                data["mapping_data"] = json.load(f)
-        elif file_name == "players.json":
-            with open(os.path.join(folder_path, file_name), "r") as f:
-                player = json.load(f)
-                data["players"][player["id"]] = player  # Use player ID as key
-        elif file_name == "teams.json":
-            with open(os.path.join(folder_path, file_name), "r") as f:
-                team = json.load(f)
-                data["teams"][team["id"]] = team  # Use team ID as key
-        elif file_name == "tournaments.json":
-            with open(os.path.join(folder_path, file_name), "r") as f:
-                tournament = json.load(f)
-                data["tournaments"][tournament["id"]] = tournament  # Use tournament ID as key
-        elif file_name == "leagues.json":
-            with open(os.path.join(folder_path, file_name), "r") as f:
-                league = json.load(f)
-                data["leagues"][league["league_id"]] = league  # Use league ID as key
-
-    return data
-
-def link_data(data):
-    linked_data = []
-    for mapping in data["mapping_data"]:
-        team_info = {team_id: data["teams"][team_id] for team_id in mapping["teamMapping"].values() if team_id in data["teams"]}
-        participant_info = {participant_id: data["players"][participant_id] for participant_id in mapping["participantMapping"].values() if participant_id in data["players"]}
-        
-        linked_data.append({
-            "platformGameId": mapping["platformGameId"],
-            "tournamentId": mapping["tournamentId"],
-            "teams": team_info,
-            "participants": participant_info,
-            "tournament_info": data["tournaments"].get(mapping["tournamentId"], {}),
-            "league_info": data["leagues"].get(data["tournaments"].get(mapping["tournamentId"], {}).get("league_id"), {})
-        })
-    
-    return linked_data
-
-folder_path = '../data'
-data = load_json(folder_path)
-linked_data = link_data(data)
+    return response["text"] if "text" in response else "Sorry, I couldn't generate a valid response."
 
 # Streamlit UI
 st.title("VCT Team Builder")
@@ -150,4 +75,3 @@ freeform_text = st.sidebar.text_area(label="What is your question", max_chars=10
 if freeform_text:
     response = vct_chatbot(freeform_text, scrape_data)
     st.write(response)
-
